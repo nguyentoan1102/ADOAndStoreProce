@@ -2,6 +2,8 @@
 using System.Configuration;
 using System.Data.Common;
 using System.Linq;
+using System.Data.OracleClient;
+using System.Data;
 
 namespace ConsoleApp1
 {
@@ -9,46 +11,78 @@ namespace ConsoleApp1
     {
         private static void Main(string[] args)
         {
-            string dp = ConfigurationManager.AppSettings["provider"];
             string connectionString = ConfigurationManager.AppSettings["cnStr"];
-            //Get the factory provider.
-            DbProviderFactory df = DbProviderFactories.GetFactory(dp);
-            //Now get the connection object.
-            // Read data from database with CommandType.Text
-            //ReadDataWithDataReader(dp, connectionString, df);
-            //Get pet name with storeproceduce
-            InventoryDAL invenCar = new InventoryDAL();
-            invenCar.OpenConnection(connectionString);
-            Console.WriteLine("Car's PetName is:" + invenCar.LookUpPetName(5));
-            invenCar.CloseConnection();
+#pragma warning disable CS0618 // Type or member is obsolete
+            using (OracleConnection objConn = new OracleConnection(connectionString))
+            {
+                OracleCommand objCmd = new OracleCommand
+                {
+#pragma warning restore CS0618 // Type or member is obsolete
+                    Connection = objConn,
+                    CommandText = "human_resources.get_employee",
+                    CommandType = System.Data.CommandType.StoredProcedure,
+                };
+                objCmd.Parameters.Add("cur_employees", OracleType.Cursor).Direction = ParameterDirection.Output;
+                try
+                {
+                    objConn.Open();
+                    OracleDataReader objReader = objCmd.ExecuteReader();
+                    PrvPrintReader(objReader);
+                }
+                catch (Exception ex)
+                {
+                    System.Console.WriteLine("Exception: {0}", ex.ToString());
+                }
+                objConn.Close();
+            }
+
             Console.ReadLine();
         }
 
-        private static void ReadDataWithSqlCommand()
+        public static void PrvPrintReader(OracleDataReader objReader)
         {
+            for (int i = 0; i < objReader.FieldCount; i++)
+            {
+                System.Console.Write("{0}\t", objReader.GetName(i));
+            }
+            System.Console.Write("\n");
+
+            while (objReader.Read())
+            {
+                for (int i = 0; i < objReader.FieldCount; i++)
+                {
+                    System.Console.Write("{0}\t", objReader[i].ToString());
+                }
+                System.Console.Write("\n");
+            }
         }
 
-        private static void ReadDataWithDataReader(string dataProvider, string connectionString, DbProviderFactory df)
+        public static void CountSalaryOfEmployees(string connectionString)
         {
-            using (DbConnection cn = df.CreateConnection())
+#pragma warning disable CS0618 // Type or member is obsolete
+            using (OracleConnection objConn = new OracleConnection(connectionString))
+#pragma warning restore CS0618 // Type or member is obsolete
             {
-                Console.WriteLine("Your connection object is a: {0}", cn.GetType().Name);
-                cn.ConnectionString = connectionString;
-                cn.Open();
-                // Make command object.
-                DbCommand cmd = df.CreateCommand();
-                Console.WriteLine("Your command object is a : {0}", cmd.GetType().Name);
-                cmd.Connection = cn;
-                cmd.CommandText = "Select * From Inventory";
-
-                // Print out data with data reader.
-                using (DbDataReader dr = cmd.ExecuteReader())
+#pragma warning disable CS0618 // Type or member is obsolete
+                OracleCommand objCmd = new OracleCommand
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
-                    Console.WriteLine("Your data reader object is a: {0}", dr.GetType().Name);
-                    Console.WriteLine("\n***** Current Inventory *****");
-                    while (dr.Read())
-                        Console.WriteLine("-> Car #{0} is a {1}.",
-                        dr["CarID"], dr["Make"].ToString());
+                    Connection = objConn,
+                    CommandText = "count_empl_salary",
+                    CommandType = System.Data.CommandType.StoredProcedure
+                };
+                objCmd.Parameters.Add("pin_deptno", OracleType.Number).Value = 1700000;
+                objCmd.Parameters.Add("pout_count", OracleType.Number).Direction = System.Data.ParameterDirection.Output;
+                try
+                {
+                    objConn.Open();
+                    objCmd.ExecuteNonQuery();
+
+                    Console.WriteLine("Number of employees have salary = 17000  is " + objCmd.Parameters["pout_count"].Value);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
                 }
             }
         }
